@@ -99,7 +99,9 @@ Two judgement calls worth remembering:
 
 The series currently reads: CTL peaked at 42.1 on 2026-05-27, biggest single day was the 60K at 729 load, and CTL has decayed to 2.7 by 2026-11-10 because nothing has been recorded since July.
 
-**Phase 4, the chart (2.5 hrs).** FastAPI app, load chart with shift bands behind the line. *Gate: the page opens from my iPhone over Tailscale and the bands line up with days I actually worked.*
+**Phase 4, the chart (2.5 hrs). DONE 2026-11-10.** FastAPI plus Jinja, Chart.js vendored locally (no CDN at runtime), load bars with CTL and ATL over the top, shift days shaded as vertical bands, a second chart for ACWR with the 1.5 and 0.8 reference lines, and a two week table. Range buttons for 90 days, 180 days or everything. *Gate passed: the page renders in a browser, and the shaded bands match the database pattern day for day, including the three day block around 2026-11-07 to 11-09 where the extra shift sits.*
+
+Two fixes worth remembering: the load bars get their own left axis, because a single 729 day flattened the fitness and fatigue curves into the floor when they shared a scale, and the shift bands are drawn from the API's own `is_shift` array, so calendar edits show up without touching the chart code.
 
 **Phase 5, recovery (2 hrs).** Sleep, HRV, resting HR and Body Battery panel, averaged by cycle position. *Gate: I can read off whether HRV is suppressed on shift day 2 versus off day 3.*
 
@@ -148,7 +150,7 @@ Multi-athlete coaching, nutrition, weight trends, strength and cycling metrics, 
 | 1 | done 2026-11-10 | 37 activities, 240 wellness days, 374 shift days, idempotent |
 | 2 | done 2026-11-10 | TRIMP for 37 activities, avg HR within 1.1 bpm of Garmin |
 | 3 | done 2026-11-10 | CTL/ATL/ACWR/monotony/strain, 9 tests passing, hand check matched |
-| 4 | not started | |
+| 4 | done 2026-11-10 | load chart, ACWR chart, shift bands, 90/180/all ranges |
 | 5 | not started | |
 | 6 | not started | |
 

@@ -275,6 +275,13 @@ def cmd_shifts(args) -> int:
     return 0
 
 
+def cmd_serve(args) -> int:
+    """Run the dashboard. Binds where Tailscale can reach it, never the open internet."""
+    import uvicorn
+    print(f"serving on http://{args.host}:{args.port}")
+    uvicorn.run("shiftload.web.app:app", host=args.host, port=args.port, log_level="warning")
+
+
 def cmd_status(args) -> int:
     conn = store.connect()
     for table in ("activities", "daily_wellness", "shifts", "sync_runs"):
@@ -317,6 +324,11 @@ def main(argv=None) -> int:
 
     sp = sub.add_parser("recompute", help="rebuild the daily load series from stored data")
     sp.set_defaults(func=cmd_recompute)
+
+    sp = sub.add_parser("serve", help="run the dashboard")
+    sp.add_argument("--host", default="0.0.0.0")
+    sp.add_argument("--port", type=int, default=4534)
+    sp.set_defaults(func=cmd_serve)
 
     sp = sub.add_parser("status", help="what is in the database")
     sp.set_defaults(func=cmd_status)

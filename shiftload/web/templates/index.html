@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>shiftload</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --ink: #1d1d1f; --muted: #6d6d72;
+    --line: #e3e3df; --accent: #b3541e; --shift: rgba(90, 90, 100, 0.16);
+    --ctl: #1f6feb; --atl: #c2410c; --bar: rgba(31, 111, 235, 0.35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171a; --card: #1e2024; --ink: #e8e8ea; --muted: #a1a1a8;
+      --line: #2e3035; --accent: #f0883e; --shift: rgba(200, 200, 220, 0.13);
+      --ctl: #58a6ff; --atl: #f0883e; --bar: rgba(88, 166, 255, 0.30);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 20px 60px; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 2px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .card .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .card .v { font-size: 22px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .card .n { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+  .panel h2 { font-size: 14px; margin: 0 0 10px; font-weight: 600; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+  .range { margin-left: auto; display: flex; gap: 6px; }
+  .range button {
+    background: transparent; border: 1px solid var(--line); color: var(--muted);
+    border-radius: 6px; padding: 3px 9px; font-size: 12px; cursor: pointer;
+  }
+  .range button.on { border-color: var(--accent); color: var(--accent); }
+  canvas { width: 100% !important; }
+  .chartbox { position: relative; height: 300px; }
+  .chartbox.small { height: 170px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .on { color: var(--accent); font-weight: 600; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>shiftload</h1>
+  <div class="sub">
+    {% if last_activity %}
+      last activity {{ last_activity.activity_date }} · {{ last_activity.name }} ·
+      {{ "%.1f"|format((last_activity.distance_m or 0)/1000) }} km
+    {% endif %}
+    · {{ total_days }} days in the series
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="k">Fitness (CTL)</div>
+      <div class="v">{{ "%.1f"|format(latest.ctl) if latest else "-" }}</div>
+      <div class="n">42 day average</div>
+    </div>
+    <div class="card">
+      <div class="k">Fatigue (ATL)</div>
+      <div class="v">{{ "%.1f"|format(latest.atl) if latest else "-" }}</div>
+      <div class="n">7 day average</div>
+    </div>
+    <div class="card">
+      <div class="k">ACWR</div>
+      <div class="v">{{ latest.acwr if latest and latest.acwr else "-" }}</div>
+      <div class="n">{{ acwr_words }}</div>
+    </div>
+    <div class="card">
+      <div class="k">Last load</div>
+      <div class="v">{{ "%.0f"|format(last_loaded.load) if last_loaded else "-" }}</div>
+      <div class="n">{{ last_loaded.date if last_loaded else "" }}</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--bar)"></span>daily load</span>
+      <span><span class="swatch" style="background:var(--ctl)"></span>CTL fitness</span>
+      <span><span class="swatch" style="background:var(--atl)"></span>ATL fatigue</span>
+      <span><span class="swatch" style="background:var(--shift)"></span>on shift</span>
+      <span class="range">
+        <button data-days="90">90d</button>
+        <button data-days="180">180d</button>
+        <button data-days="0">all</button>
+      </span>
+    </div>
+    <div class="chartbox"><canvas id="loadChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>Acute to chronic ratio</h2>
+    <div class="chartbox small"><canvas id="acwrChart"></canvas></div>
+    <div class="note">Above 1.5 means the last week ran well past the base. After a break it reads high for a few weeks while the base rebuilds, and that is arithmetic rather than a warning.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Last two weeks</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Shift</th><th class="num">Load</th><th class="num">Strain</th></tr></thead>
+      <tbody>
+      {% for d in week %}
+        <tr>
+          <td>{{ d.date }}</td>
+          <td>{% if d.is_shift %}<span class="on">on</span>{% else %}off{% endif %}</td>
+          <td class="num">{{ "%.0f"|format(d.load) }}</td>
+          <td class="num">{{ "%.0f"|format(d.strain) if d.strain else "-" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script src="/static/chart.umd.min.js"></script>
+<script>
+const range = {{ days }};
+document.querySelectorAll('.range button').forEach(b => {
+  if (Number(b.dataset.days) === range) b.classList.add('on');
+  b.addEventListener('click', () => {
+    const v = b.dataset.days;
+    window.location = v === '0' ? '/' : '/?days=' + v;
+  });
+});
+
+// shade the days he is on shift behind everything else
+const shiftBands = {
+  id: 'shiftBands',
+  beforeDatasetsDraw(chart, args, opts) {
+    const flags = opts.flags || [];
+    const { ctx, chartArea, scales } = chart;
+    if (!flags.length) return;
+    const width = Math.max(2, Math.abs(scales.x.getPixelForValue(1) - scales.x.getPixelForValue(0)) * 0.9);
+    ctx.save();
+    ctx.fillStyle = opts.color;
+    flags.forEach((on, i) => {
+      if (!on) return;
+      const x = scales.x.getPixelForValue(i);
+      ctx.fillRect(x - width / 2, chartArea.top, width, chartArea.bottom - chartArea.top);
+    });
+    ctx.restore();
+  }
+};
+
+const css = getComputedStyle(document.documentElement);
+const C = {
+  ctl: css.getPropertyValue('--ctl').trim(),
+  atl: css.getPropertyValue('--atl').trim(),
+  bar: css.getPropertyValue('--bar').trim(),
+  shift: css.getPropertyValue('--shift').trim(),
+  muted: css.getPropertyValue('--muted').trim(),
+  line: css.getPropertyValue('--line').trim(),
+};
+
+fetch('/api/series?days=' + range)
+  .then(r => r.json())
+  .then(d => {
+    const grid = { color: C.line, drawTicks: false };
+    const base = {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: C.muted, maxTicksLimit: 8, maxRotation: 0 } },
+        y: { grid, ticks: { color: C.muted, maxTicksLimit: 5 }, beginAtZero: true }
+      }
+    };
+
+    new Chart(document.getElementById('loadChart'), {
+      type: 'bar',
+      data: {
+        labels: d.dates,
+        datasets: [
+          { label: 'daily load', data: d.load, backgroundColor: C.bar, borderWidth: 0,
+            yAxisID: 'y', barPercentage: 0.9, categoryPercentage: 1 },
+          { label: 'CTL', data: d.ctl, type: 'line', borderColor: C.ctl, borderWidth: 2,
+            pointRadius: 0, tension: 0.25, yAxisID: 'y1' },
+          { label: 'ATL', data: d.atl, type: 'line', borderColor: C.atl, borderWidth: 1.5,
+            pointRadius: 0, tension: 0.25, yAxisID: 'y1' }
+        ]
+      },
+      options: { ...base,
+        // a 729 load spike would flatten the curves if they shared one axis
+        scales: { ...base.scales,
+          y: { ...base.scales.y, position: 'left', title: { display: true, text: 'daily load', color: C.muted, font: { size: 10 } } },
+          y1: { ...base.scales.y, position: 'right', beginAtZero: true, grid: { display: false },
+                title: { display: true, text: 'CTL / ATL', color: C.muted, font: { size: 10 } } } },
+        plugins: { legend: { display: false }, shiftBands: { flags: d.is_shift, color: C.shift } } },
+      plugins: [shiftBands]
+    });
+
+    new Chart(document.getElementById('acwrChart'), {
+      type: 'line',
+      data: {
+        labels: d.dates,
+        datasets: [
+          { label: 'ACWR', data: d.acwr, borderColor: C.atl, borderWidth: 2,
+            pointRadius: 0, tension: 0.2, spanGaps: false },
+          { label: '1.5', data: d.dates.map(() => 1.5), borderColor: C.muted,
+            borderWidth: 1, borderDash: [4, 4], pointRadius: 0 },
+          { label: '0.8', data: d.dates.map(() => 0.8), borderColor: C.muted,
+            borderWidth: 1, borderDash: [4, 4], pointRadius: 0 }
+        ]
+      },
+      options: { ...base, scales: { ...base.scales, y: { ...base.scales.y, beginAtZero: true, suggestedMax: 2.2 } } }
+    });
+  });
+</script>
+</body>
+</html>
