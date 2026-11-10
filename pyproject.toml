@@ -1,0 +1,21 @@
+[project]
+name = "shiftload"
+version = "0.1.0"
+description = "Self-hosted training load dashboard for Garmin data and a 48/96 shift schedule"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27",
+    "icalendar>=6.0",
+    "recurring-ical-events>=3.0",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+shiftload = "shiftload.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["shiftload"]

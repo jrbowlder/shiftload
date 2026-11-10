@@ -1,0 +1,7 @@
+# secrets and local state
+.env
+data/
+.venv/
+__pycache__/
+*.pyc
+*.db
