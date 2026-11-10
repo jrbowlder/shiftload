@@ -6,7 +6,7 @@ import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from . import config, fit, shifts, store
+from . import config, fit, metrics, shifts, store
 from .garmin import Garmin, GarminError, iter_windows
 
 
@@ -207,6 +207,48 @@ def cmd_fit(args) -> int:
     return 0
 
 
+def cmd_recompute(args) -> int:
+    """Rebuild the daily load series from stored activities and shifts."""
+    conn = store.connect()
+    per_day: dict[str, float] = {}
+    for r in conn.execute("SELECT activity_date, SUM(load_trimp) l FROM activities GROUP BY activity_date"):
+        if r["l"]:
+            per_day[r["activity_date"]] = float(r["l"])
+
+    first = conn.execute("SELECT MIN(date) a FROM shifts").fetchone()["a"] or config.BACKFILL_START
+    last = max([date.today().isoformat()] + list(per_day))
+    days = metrics.date_range(date.fromisoformat(first), date.fromisoformat(last))
+    rows = metrics.build_series(days, per_day)
+
+    shift_map = {r["date"]: (r["is_shift"], r["cycle_day"])
+                 for r in conn.execute("SELECT date, is_shift, cycle_day FROM shifts")}
+    for row in rows:
+        row["is_shift"], row["cycle_day"] = shift_map.get(row["date"], (None, None))
+
+    store.replace_daily_load(conn, rows)
+
+    span = [r for r in rows if r["load"] > 0]
+    print(f"daily series: {len(rows)} days ({rows[0]['date']} to {rows[-1]['date']}), "
+          f"{len(span)} with load")
+    last_loaded = span[-1] if span else None
+    if last_loaded:
+        print(f"last day with load: {last_loaded['date']} "
+              f"(CTL {last_loaded['ctl']}, ATL {last_loaded['atl']}, ACWR {last_loaded['acwr']})")
+    peak = max((r for r in rows if r["acwr"]), key=lambda r: r["acwr"], default=None)
+    if peak:
+        print(f"peak ACWR: {peak['acwr']} on {peak['date']} ({metrics.flag(peak['acwr'])})")
+    biggest = max(rows, key=lambda r: r["load"])
+    print(f"biggest day: {biggest['date']} {biggest['load']} load")
+
+    print("\nlast 14 days:")
+    print(f"{'date':12}{'shift':7}{'load':>6}{'CTL':>7}{'ATL':>7}{'ACWR':>6}  ")
+    for r in rows[-14:]:
+        shift = "ON" if r.get("is_shift") else ("off" if r.get("is_shift") == 0 else "?")
+        print(f"{r['date']:12}{shift:7}{r['load']:6.0f}{(r['ctl'] or 0):7.1f}"
+              f"{(r['atl'] or 0):7.1f}{(r['acwr'] if r['acwr'] is not None else 0):6.2f}")
+    return 0
+
+
 def fit_download(g: Garmin, activity_id: int) -> bytes:
     return g.get(f"/download-service/files/activity/{activity_id}")
 
@@ -272,6 +314,9 @@ def main(argv=None) -> int:
     sp.add_argument("--hrmax", type=float, default=None)
     sp.add_argument("--hrrest", type=float, default=None)
     sp.set_defaults(func=cmd_fit)
+
+    sp = sub.add_parser("recompute", help="rebuild the daily load series from stored data")
+    sp.set_defaults(func=cmd_recompute)
 
     sp = sub.add_parser("status", help="what is in the database")
     sp.set_defaults(func=cmd_status)

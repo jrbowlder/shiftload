@@ -72,6 +72,19 @@ CREATE TABLE IF NOT EXISTS shifts (
     updated_at      TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS daily_load (
+    date        TEXT PRIMARY KEY,
+    load        REAL NOT NULL,
+    ctl         REAL,
+    atl         REAL,
+    acwr        REAL,
+    monotony    REAL,
+    strain      REAL,
+    is_shift    INTEGER,
+    cycle_day   INTEGER,
+    updated_at  TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS sync_runs (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     kind        TEXT NOT NULL,
@@ -249,6 +262,20 @@ def replace_shifts(conn, rows: list[dict]) -> int:
              r.get("cycle_day"), ts)
             for r in rows
         ],
+    )
+    conn.commit()
+    return len(rows)
+
+
+def replace_daily_load(conn, rows: list[dict]) -> int:
+    ts = now()
+    conn.execute("DELETE FROM daily_load")
+    conn.executemany(
+        """INSERT INTO daily_load (date, load, ctl, atl, acwr, monotony, strain,
+                                   is_shift, cycle_day, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        [(r["date"], r["load"], r["ctl"], r["atl"], r["acwr"], r["monotony"], r["strain"],
+          r.get("is_shift"), r.get("cycle_day"), ts) for r in rows],
     )
     conn.commit()
     return len(rows)

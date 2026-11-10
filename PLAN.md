@@ -90,7 +90,14 @@ Load runs 130 to 162 TRIMP per hour on hard days and 40 to 80 per hour on easy o
 
 Heart rate inputs are derived from his own data, not guessed: HRmax 188 (highest seen in a FIT record), HRrest 59 (median of 240 resting readings). Both are overridable with `--hrmax` and `--hrrest` if a max effort later shows a higher peak.
 
-**Phase 3, the model (2 hrs).** Daily load series, CTL/ATL/ACWR, monotony and strain, with tests on a small fixture series. *Gate: unit tests pass and one ACWR value on screen matches a hand calculation.*
+**Phase 3, the model (2 hrs). DONE 2026-11-10.** Daily load series with gap days filled at zero, CTL (42 day), ATL (7 day), ACWR, plus Foster monotony and strain. Nine tests cover convergence, reaction speed, spike detection, monotony, zero filling and the cold start rule. *Gate passed: an independent hand recomputation for 2026-05-27 gave CTL 42.15, ATL 68.01, ACWR 1.614 against 42.10 / 68.00 / 1.61 in the database.*
+
+Two judgement calls worth remembering:
+
+- **ACWR stays silent for the first 28 days and until CTL reaches 5.** Without that gate the curve reported a 5.66 "spike" on 2026-02-12 on the back of a CTL of 1.9, which is a cold start dressed up as a warning.
+- **Low base numbers still read high on purpose.** The highest ACWR in the year is 5.09 on 2026-02-15, when CTL was 5.4 and a single 155 load day more than tripled his weekly average. That is honestly a spike from nothing, so it stands, but February values are about starting cold rather than about danger.
+
+The series currently reads: CTL peaked at 42.1 on 2026-05-27, biggest single day was the 60K at 729 load, and CTL has decayed to 2.7 by 2026-11-10 because nothing has been recorded since July.
 
 **Phase 4, the chart (2.5 hrs).** FastAPI app, load chart with shift bands behind the line. *Gate: the page opens from my iPhone over Tailscale and the bands line up with days I actually worked.*
 
@@ -140,7 +147,7 @@ Multi-athlete coaching, nutrition, weight trends, strength and cycling metrics, 
 | 0 | done 2026-11-10 | probe prints real activities |
 | 1 | done 2026-11-10 | 37 activities, 240 wellness days, 374 shift days, idempotent |
 | 2 | done 2026-11-10 | TRIMP for 37 activities, avg HR within 1.1 bpm of Garmin |
-| 3 | not started | |
+| 3 | done 2026-11-10 | CTL/ATL/ACWR/monotony/strain, 9 tests passing, hand check matched |
 | 4 | not started | |
 | 5 | not started | |
 | 6 | not started | |
