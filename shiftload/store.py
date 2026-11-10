@@ -27,7 +27,11 @@ CREATE TABLE IF NOT EXISTS activities (
     anaerobic_te    REAL,
     hr_zones_json   TEXT,
     raw_json        TEXT,
-    ingested_at     TEXT NOT NULL
+    ingested_at     TEXT NOT NULL,
+    load_trimp      REAL,
+    trimp_minutes   REAL,
+    fit_path        TEXT,
+    hr_max_obs      REAL
 );
 CREATE INDEX IF NOT EXISTS idx_activities_date ON activities(activity_date);
 
@@ -83,11 +87,32 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+MIGRATIONS = {
+    "activities": {
+        "load_trimp": "REAL",
+        "trimp_minutes": "REAL",
+        "fit_path": "TEXT",
+        "hr_max_obs": "REAL",
+    },
+}
+
+
+def _migrate(conn) -> None:
+    """Add columns that later phases introduced, without losing the database."""
+    for table, columns in MIGRATIONS.items():
+        have = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        for name, kind in columns.items():
+            if name not in have:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {kind}")
+    conn.commit()
+
+
 def connect(path=None) -> sqlite3.Connection:
     config.ensure_dirs()
     conn = sqlite3.connect(path or config.DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
 
 
@@ -138,6 +163,25 @@ def upsert_activities(conn, items: list[dict]) -> int:
         rows += 1
     conn.commit()
     return rows
+
+
+def set_load(conn, activity_id: int, load: float, minutes: float, fit_path: str, hr_max: float) -> None:
+    conn.execute(
+        """UPDATE activities SET load_trimp=?, trimp_minutes=?, fit_path=?, hr_max_obs=?
+           WHERE activity_id=?""",
+        (load, minutes, fit_path, hr_max, activity_id),
+    )
+    conn.commit()
+
+
+def load_inputs(conn) -> tuple[float, float]:
+    """Max heart rate seen in the data, and the median resting heart rate."""
+    mx = conn.execute("SELECT MAX(hr_max_obs) a, MAX(max_hr) b FROM activities").fetchone()
+    rhr = conn.execute("SELECT resting_hr FROM daily_wellness WHERE resting_hr IS NOT NULL").fetchall()
+    vals = sorted(r["resting_hr"] for r in rhr if r["resting_hr"])
+    median_rest = vals[len(vals) // 2] if vals else 55
+    observed_max = max([v for v in (mx["a"], mx["b"]) if v] or [0])
+    return float(observed_max or 190), float(median_rest)
 
 
 # ---------- wellness ----------

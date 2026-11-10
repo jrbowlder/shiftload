@@ -76,13 +76,19 @@ Cycle position (shift day 1, shift day 2, off day 1 to 4) is stored per day as `
 - **Monotony and strain**: Foster's weekly monotony, kept because shift weeks genuinely are monotonous or spiky in a way normal running weeks are not.
 - **Recovery**: sleep score and duration, nightly HRV average and status, resting HR, Body Battery low and high, average stress.
 
+**Strength work (decided 2026-11-10).** He lifts in the gym on shift days and has not been logging it. Unlogged lifting makes shift days look like rest days, which would quietly corrupt every recovery conclusion, so it has to enter the data. The route is to record it on the watch (the 255 has a strength profile) rather than adding a manual entry screen. In Phase 3 those sessions get a load value of their own and the page shows a separate strength marker, so a shift day with lifting never reads as an empty day.
+
 ## 8. Phases
 
 **Phase 0, plumbing (45 min). DONE 2026-11-10.** Repo at `~/Projects/shiftload`, `.env` with the key at 600, and a `probe` command that mints a token and prints the last three activities. *Gate passed: probe printed the Standhope 60K Fail on 2026-07-25 and live values for today.*
 
 **Phase 1, ingest (2 hrs). DONE 2026-11-10.** SQLite schema, activity paging, wellness ranges in 31 day windows, live calendar shifts, raw archive under `~/shiftload-data/raw`. *Gate passed: 37 activities since 2026-01-01, 240 wellness days, 374 shift days, and a second identical sync changed no row counts.*
 
-**Phase 2, FIT parsing (2 hrs).** Download FIT files, decode the record stream, compute TRIMP and per-activity summaries. *Gate: my longest recent trail run produces a plausible load number, and its computed avg HR matches Garmin's within a couple of beats.*
+**Phase 2, FIT parsing (2 hrs). DONE 2026-11-10.** FIT download (the endpoint returns a zip), record stream decoding with `fitdecode`, TRIMP from heart rate reserve, FIT files archived under `~/shiftload-data/raw/fit/`. *Gate passed: the Standhope 60K comes out at 729 TRIMP over 335 minutes, and computed average heart rate is within 1.1 bpm of Garmin's number on all 8 activities checked.*
+
+Load runs 130 to 162 TRIMP per hour on hard days and 40 to 80 per hour on easy ones, which is the range these coefficients normally produce. Total across 37 activities: 5,073.
+
+Heart rate inputs are derived from his own data, not guessed: HRmax 188 (highest seen in a FIT record), HRrest 59 (median of 240 resting readings). Both are overridable with `--hrmax` and `--hrrest` if a max effort later shows a higher peak.
 
 **Phase 3, the model (2 hrs).** Daily load series, CTL/ATL/ACWR, monotony and strain, with tests on a small fixture series. *Gate: unit tests pass and one ACWR value on screen matches a hand calculation.*
 
@@ -133,7 +139,7 @@ Multi-athlete coaching, nutrition, weight trends, strength and cycling metrics, 
 | --- | --- | --- |
 | 0 | done 2026-11-10 | probe prints real activities |
 | 1 | done 2026-11-10 | 37 activities, 240 wellness days, 374 shift days, idempotent |
-| 2 | not started | |
+| 2 | done 2026-11-10 | TRIMP for 37 activities, avg HR within 1.1 bpm of Garmin |
 | 3 | not started | |
 | 4 | not started | |
 | 5 | not started | |

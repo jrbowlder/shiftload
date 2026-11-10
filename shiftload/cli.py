@@ -6,7 +6,7 @@ import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from . import config, shifts, store
+from . import config, fit, shifts, store
 from .garmin import Garmin, GarminError, iter_windows
 
 
@@ -160,6 +160,57 @@ def cmd_sync(args) -> int:
     return 0
 
 
+def cmd_fit(args) -> int:
+    """Download FIT files and compute TRIMP for activities that do not have it yet."""
+    conn = store.connect()
+    hrmax, hrrest = store.load_inputs(conn)
+    if args.hrmax:
+        hrmax = args.hrmax
+    if args.hrrest:
+        hrrest = args.hrrest
+    print(f"using HRmax {hrmax:.0f}, HRrest {hrrest:.0f}")
+    sql = "SELECT activity_id, activity_date, name, duration_s, max_hr, load_trimp FROM activities"
+    if not args.force:
+        sql += " WHERE load_trimp IS NULL"
+    sql += " ORDER BY start_local"
+    rows = conn.execute(sql).fetchall()
+    if not rows:
+        print("nothing to do, every activity already has a load")
+        return 0
+
+    g = Garmin()
+    config.ensure_dirs()
+    fit_dir = config.RAW_DIR / "fit"
+    fit_dir.mkdir(parents=True, exist_ok=True)
+    print(f"{'date':10} {'mins':>5} {'dur':>6} {'maxHR':>6} {'TRIMP':>7} {'GarminTE':>9}  name")
+    total = 0.0
+    for r in rows:
+        aid = r["activity_id"]
+        try:
+            payload = fit_download(g, aid)
+            path = fit_dir / f"{aid}.fit.zip"
+            path.write_bytes(payload)
+            raw = fit.unzip_fit(payload)
+            (fit_dir / f"{aid}.fit").write_bytes(raw)
+            recs = fit.parse_records(raw)
+            load, minutes = fit.trimp(recs, hrmax, hrrest)
+            conn.execute("UPDATE activities SET load_trimp=?, trimp_minutes=?, fit_path=?, hr_max_obs=? WHERE activity_id=?",
+                         (load, minutes, str(path), max((x["hr"] for x in recs), default=None), aid))
+            conn.commit()
+            total += load
+            te = conn.execute("SELECT aerobic_te FROM activities WHERE activity_id=?", (aid,)).fetchone()[0]
+            print(f"{r['activity_date']:10} {minutes:5.0f} {r['duration_s']/60 if r['duration_s'] else 0:6.0f} "
+                  f"{(r['max_hr'] or 0):6.0f} {load:7.0f} {(te or 0):9.1f}  {r['name'][:40]}")
+        except Exception as exc:  # noqa: BLE001 - one bad file must not stop the backfill
+            print(f"{r['activity_date']:10} FAILED {aid}: {exc}")
+    print(f"\ntotal load across {len(rows)} activities: {total:.0f}")
+    return 0
+
+
+def fit_download(g: Garmin, activity_id: int) -> bytes:
+    return g.get(f"/download-service/files/activity/{activity_id}")
+
+
 def cmd_shifts(args) -> int:
     since = date.fromisoformat(args.since or config.BACKFILL_START)
     until = date.fromisoformat(args.until) if args.until else date.today() + timedelta(days=config.SHIFT_HORIZON_DAYS)
@@ -215,6 +266,12 @@ def main(argv=None) -> int:
     sp.add_argument("--since", default=None)
     sp.add_argument("--until", default=None)
     sp.set_defaults(func=cmd_shifts)
+
+    sp = sub.add_parser("fit", help="download FIT files and compute TRIMP")
+    sp.add_argument("--force", action="store_true", help="recompute activities that already have a load")
+    sp.add_argument("--hrmax", type=float, default=None)
+    sp.add_argument("--hrrest", type=float, default=None)
+    sp.set_defaults(func=cmd_fit)
 
     sp = sub.add_parser("status", help="what is in the database")
     sp.set_defaults(func=cmd_status)
