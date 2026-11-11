@@ -8,7 +8,7 @@ Every summary reports its sample size, because most of these buckets are small a
 mean over nine nights is not evidence of anything.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 RECOVERY_FIELDS = {
     "sleep_score": "sleep score",
@@ -78,22 +78,45 @@ def cycle_summary(conn, since: str | None = None) -> list[dict]:
 
 
 def series(conn, days: int = 0) -> dict:
-    """Daily recovery numbers with the shift flag, for charting."""
+    """Daily recovery numbers on one slot per calendar day.
+
+    Wellness has real gaps (two months with nothing in 2026), so an index axis would
+    quietly squeeze those weeks shut and make the chart lie about timing. Every date in
+    the window gets a slot, missing days stay null, and the line breaks there instead.
+    """
     sql = """SELECT w.date, w.resting_hr, w.hrv_nightly, w.sleep_score, w.bb_min, w.stress_avg,
                     s.is_shift
              FROM daily_wellness w LEFT JOIN shifts s ON s.date = w.date
              ORDER BY w.date"""
     rows = conn.execute(sql).fetchall()
-    if days and days < len(rows):
-        rows = rows[-days:]
-    return {
-        "dates": [r["date"] for r in rows],
-        "resting_hr": [r["resting_hr"] for r in rows],
-        "hrv": [r["hrv_nightly"] for r in rows],
-        "sleep_score": [r["sleep_score"] for r in rows],
-        "bb_min": [r["bb_min"] for r in rows],
-        "is_shift": [r["is_shift"] for r in rows],
-    }
+    keys = ["dates", "resting_hr", "hrv", "sleep_score", "bb_min", "is_shift"]
+    if not rows:
+        return {k: [] for k in keys}
+
+    by_date = {r["date"]: r for r in rows}
+    first = date.fromisoformat(rows[0]["date"])
+    last = date.fromisoformat(rows[-1]["date"])
+    if days:
+        first = max(first, last - timedelta(days=days - 1))
+    count = (last - first).days + 1
+
+    # shift flags come from the shift table, not from wellness: he still worked through
+    # August and September, we simply have no wellness rows for those days
+    shift_map = {r["date"]: r["is_shift"] for r in conn.execute(
+        "SELECT date, is_shift FROM shifts WHERE date BETWEEN ? AND ?",
+        (first.isoformat(), last.isoformat()))}
+
+    out = {k: [] for k in keys}
+    for n in range(count):
+        key = (first + timedelta(days=n)).isoformat()
+        row = by_date.get(key)
+        out["dates"].append(key)
+        out["resting_hr"].append(row["resting_hr"] if row else None)
+        out["hrv"].append(row["hrv_nightly"] if row else None)
+        out["sleep_score"].append(row["sleep_score"] if row else None)
+        out["bb_min"].append(row["bb_min"] if row else None)
+        out["is_shift"].append(shift_map.get(key))
+    return out
 
 
 def biggest_gap(summary: list[dict], field: str) -> dict | None:
