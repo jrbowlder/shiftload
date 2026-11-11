@@ -1,0 +1,18 @@
+services:
+  shiftload:
+    build: .
+    image: shiftload:local
+    container_name: shiftload
+    restart: unless-stopped
+    ports:
+      - "4534:4534"
+    env_file:
+      - .env
+    environment:
+      SHIFTLOAD_DATA: /data
+      VDIRSYNCER_CONFIG: /calendar/vdirsyncer.conf
+      TZ: America/Denver
+    volumes:
+      - ${HOME}/shiftload-data:/data
+      # the calendar login already lives here, so mount it read only rather than copy it
+      - ${HOME}/.config/vdirsyncer/config:/calendar/vdirsyncer.conf:ro

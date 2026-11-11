@@ -17,7 +17,8 @@ GARMIN_API_KEY = os.environ.get("GARMIN_API_KEY", "").strip()
 # The FIRE calendar, read live over CalDAV. The local vdirsyncer mirror is stale.
 CALDAV_BASE = "https://caldav.fastmail.com/dav/calendars/user/jimmybowman@fastmail.com/"
 FIRE_CALENDAR = "2733c6be-e7d9-4650-a3db-2d6ae491862e"
-VDIRSYNCER_CONFIG = Path.home() / ".config" / "vdirsyncer" / "config"
+VDIRSYNCER_CONFIG = Path(os.environ.get(
+    "VDIRSYNCER_CONFIG", Path.home() / ".config" / "vdirsyncer" / "config"))
 
 # 48/96 cycle: a shift starts on the anchor date and runs two days, then four off.
 CYCLE_ANCHOR = "2026-01-29"

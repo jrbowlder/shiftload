@@ -24,6 +24,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["shiftload"]
 
+# tell uv this project is an installable package, not just an app directory
+[tool.uv]
+package = true
+
 [dependency-groups]
 dev = [
     "pytest>=9.2.0",

@@ -111,7 +111,13 @@ What that does and does not mean:
 - It does mean the obvious story ("shift days wreck my recovery") is not in this data, so we should not build a dashboard that implies it. Recovery conclusions wait for more paired nights, which he is now collecting.
 - Shift-day sleep may simply be sleep at the station, where bedtime is earlier and more regular than at home with kids. That is a real explanation rather than a data error, and worth checking once there is more of it.
 
-**Phase 6, make it live (2 hrs).** Docker Compose, daily sync at 05:30, `/healthz`, README with screenshots, container restart check. *Gate: container comes back after reboot, data is current, README is good enough to show someone.*
+**Phase 6, make it live (2 hrs). DONE 2026-11-11.** Dockerfile and compose file, an in-process scheduler that syncs at 05:30 America/Denver with a catch-up run on startup when the last good sync is over 20 hours old, `/healthz` with a container healthcheck, `restart: unless-stopped`, and a README with screenshots. *Gate passed: the container is healthy, serves the page, runs a full sync inside itself, survives a restart, and the catch-up path was proven by planting an old sync row, restarting, and watching it fire.*
+
+Three things this phase cost, worth keeping:
+
+- **`uv sync` inside the image produced an editable `.pth` that the container ignored**, so the console script could not import the package even though the app worked from the work directory. Fixed by installing a real wheel (`--no-editable`) and by telling uv the project is a package (`[tool.uv] package = true`).
+- **`docker compose stop` then `start` does not pick up a new image.** It restarted the old container, which sent me chasing a packaging bug that was already fixed. `docker compose create --force-recreate` before `start` is the move.
+- **The scheduler lives in the web process on purpose.** One container, no cron daemon, and the catch-up run covers the laptop being asleep at 05:30, which it will be.
 
 **Phase 7, coaching view (later).** A read-only weekly summary page that looks presentable. Note: the Personal API is single-user only. Real multi-athlete support means the free Business/Starter tier with push delivery, and that is a different architecture. Decide when we get there.
 
@@ -158,7 +164,7 @@ Multi-athlete coaching, nutrition, weight trends, strength and cycling metrics, 
 | 3 | done 2026-11-10 | CTL/ATL/ACWR/monotony/strain, 9 tests passing, hand check matched |
 | 4 | done 2026-11-10 | load chart, ACWR chart, shift bands, 90/180/all ranges |
 | 5 | done 2026-11-10 | recovery chart and cycle-position table, no shift penalty visible |
-| 6 | not started | |
+| 6 | done 2026-11-11 | container healthy, syncs at 05:30, survives restart, README has screenshots |
 
 ## 13. Quiz bank
 

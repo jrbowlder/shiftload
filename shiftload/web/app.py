@@ -4,6 +4,7 @@ Deliberately small. The database holds everything, so the server just reads rows
 hands them to a template. No auth, because it only listens where Tailscale can reach it.
 """
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -11,10 +12,22 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import metrics, recovery, store
+from .. import metrics, recovery, scheduler, store
 
 WEB_DIR = Path(__file__).parent
-app = FastAPI(title="shiftload", docs_url=None, redoc_url=None)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # the daily sync lives in this process on purpose: one container, no cron daemon
+    stop = scheduler.start()
+    try:
+        yield
+    finally:
+        stop.set()
+
+
+app = FastAPI(title="shiftload", docs_url=None, redoc_url=None, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=WEB_DIR / "templates")
 
