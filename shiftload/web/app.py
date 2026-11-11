@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import metrics, store
+from .. import metrics, recovery, store
 
 WEB_DIR = Path(__file__).parent
 app = FastAPI(title="shiftload", docs_url=None, redoc_url=None)
@@ -48,6 +48,12 @@ def api_series(days: int = 0):
     }
 
 
+@app.get("/api/recovery")
+def api_recovery(days: int = 0):
+    conn = store.connect()
+    return recovery.series(conn, days)
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, days: int = 0):
     rows = _rows(days)
@@ -59,6 +65,7 @@ def index(request: Request, days: int = 0):
         """SELECT activity_date, name, distance_m FROM activities
            ORDER BY start_local DESC LIMIT 1"""
     ).fetchone()
+    cycle = recovery.cycle_summary(conn)
     week = [
         {"date": r["date"], "load": r["load"], "is_shift": r["is_shift"],
          "cycle_day": r["cycle_day"], "strain": r["strain"]}
@@ -73,6 +80,7 @@ def index(request: Request, days: int = 0):
             "last_activity": dict(last_activity) if last_activity else None,
             "acwr_words": metrics.flag(latest["acwr"]) if latest else "",
             "week": week,
+            "cycle": cycle,
             "days": days,
             "total_days": len(rows),
         },

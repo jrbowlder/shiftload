@@ -103,7 +103,13 @@ The series currently reads: CTL peaked at 42.1 on 2026-05-27, biggest single day
 
 Two fixes worth remembering: the load bars get their own left axis, because a single 729 day flattened the fitness and fatigue curves into the floor when they shared a scale, and the shift bands are drawn from the API's own `is_shift` array, so calendar edits show up without touching the chart code.
 
-**Phase 5, recovery (2 hrs).** Sleep, HRV, resting HR and Body Battery panel, averaged by cycle position. *Gate: I can read off whether HRV is suppressed on shift day 2 versus off day 3.*
+**Phase 5, recovery (2 hrs). DONE 2026-11-10.** Recovery chart with resting HR, overnight HRV and sleep score against shift bands, plus a table averaging every metric by cycle position, each mean carrying its sample size. *Gate passed, and the answer is the opposite of what we assumed. HRV on shift day 2 averages 38.7 over 29 nights against 34.4 on off day 3 over 12 nights, resting HR is lower on shift days (58.0 against 60.5 to 61.4), and sleep score is highest on shift day 2 at 86.6.*
+
+What that does and does not mean:
+
+- It does not mean shift days are restorative. The pairs are unbalanced, off day 2 has only seven nights, and the paired weeks cluster in May to July when he was training hardest.
+- It does mean the obvious story ("shift days wreck my recovery") is not in this data, so we should not build a dashboard that implies it. Recovery conclusions wait for more paired nights, which he is now collecting.
+- Shift-day sleep may simply be sleep at the station, where bedtime is earlier and more regular than at home with kids. That is a real explanation rather than a data error, and worth checking once there is more of it.
 
 **Phase 6, make it live (2 hrs).** Docker Compose, daily sync at 05:30, `/healthz`, README with screenshots, container restart check. *Gate: container comes back after reboot, data is current, README is good enough to show someone.*
 
@@ -151,7 +157,7 @@ Multi-athlete coaching, nutrition, weight trends, strength and cycling metrics, 
 | 2 | done 2026-11-10 | TRIMP for 37 activities, avg HR within 1.1 bpm of Garmin |
 | 3 | done 2026-11-10 | CTL/ATL/ACWR/monotony/strain, 9 tests passing, hand check matched |
 | 4 | done 2026-11-10 | load chart, ACWR chart, shift bands, 90/180/all ranges |
-| 5 | not started | |
+| 5 | done 2026-11-10 | recovery chart and cycle-position table, no shift penalty visible |
 | 6 | not started | |
 
 ## 13. Quiz bank

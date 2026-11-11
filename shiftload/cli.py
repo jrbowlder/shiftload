@@ -6,7 +6,7 @@ import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from . import config, fit, metrics, shifts, store
+from . import config, fit, metrics, recovery, shifts, store
 from .garmin import Garmin, GarminError, iter_windows
 
 
@@ -157,6 +157,31 @@ def cmd_sync(args) -> int:
             print("  ", n)
         if len(notes) > 20:
             print(f"   ... {len(notes)-20} more")
+    return 0
+
+
+def cmd_recovery(args) -> int:
+    """Print recovery metrics bucketed by position in the 48/96 cycle."""
+    conn = store.connect()
+    summary = recovery.cycle_summary(conn, since=args.since)
+    fields = ["sleep_score", "sleep_hours", "hrv_nightly", "resting_hr", "bb_min"]
+    print(f"{'position':14}" + "".join(f"{recovery.RECOVERY_FIELDS[f]:>16}" for f in fields))
+    print(f"{'':14}" + "".join(f"{'mean (n)':>16}" for _ in fields))
+    for row in summary:
+        cells = []
+        for f in fields:
+            v, n = row.get(f), row.get(f"{f}_n", 0)
+            cells.append(f"{v if v is not None else '-':>10} ({n:>2})")
+        print(f"{row['label']:14}" + "".join(f"{c:>16}" for c in cells))
+
+    print()
+    for f in ("hrv_nightly", "resting_hr", "sleep_score"):
+        gap = recovery.biggest_gap(summary, f)
+        if gap:
+            print(f"{recovery.RECOVERY_FIELDS[f]}: worst {gap['low']['label']} at {gap['low'][f]}, "
+                  f"best {gap['high']['label']} at {gap['high'][f]}, spread {gap['diff']}")
+        else:
+            print(f"{recovery.RECOVERY_FIELDS[f]}: not enough paired days yet")
     return 0
 
 
@@ -324,6 +349,10 @@ def main(argv=None) -> int:
 
     sp = sub.add_parser("recompute", help="rebuild the daily load series from stored data")
     sp.set_defaults(func=cmd_recompute)
+
+    sp = sub.add_parser("recovery", help="recovery metrics by cycle position")
+    sp.add_argument("--since", default=None)
+    sp.set_defaults(func=cmd_recovery)
 
     sp = sub.add_parser("serve", help="run the dashboard")
     sp.add_argument("--host", default="0.0.0.0")

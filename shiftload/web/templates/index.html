@@ -107,6 +107,42 @@
   </div>
 
   <div class="panel">
+    <h2>Recovery against the shift cycle</h2>
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--atl)"></span>resting HR</span>
+      <span><span class="swatch" style="background:var(--ctl)"></span>HRV overnight</span>
+      <span><span class="swatch" style="background:' + '#7a9e3f' + '"></span>sleep score</span>
+      <span><span class="swatch" style="background:var(--shift)"></span>on shift</span>
+    </div>
+    <div class="chartbox"><canvas id="recoveryChart"></canvas></div>
+    <table style="margin-top:12px">
+      <thead>
+        <tr>
+          <th>Cycle position</th>
+          <th class="num">Sleep score</th>
+          <th class="num">Sleep hours</th>
+          <th class="num">HRV</th>
+          <th class="num">Resting HR</th>
+          <th class="num">Battery low</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in cycle %}
+        <tr>
+          <td>{% if c.cycle_day < 2 %}<span class="on">{{ c.label }}</span>{% else %}{{ c.label }}{% endif %}</td>
+          <td class="num">{{ c.sleep_score if c.sleep_score is not none else "-" }} <span class="note">({{ c.sleep_score_n }})</span></td>
+          <td class="num">{{ c.sleep_hours if c.sleep_hours is not none else "-" }} <span class="note">({{ c.sleep_hours_n }})</span></td>
+          <td class="num">{{ c.hrv_nightly if c.hrv_nightly is not none else "-" }} <span class="note">({{ c.hrv_nightly_n }})</span></td>
+          <td class="num">{{ c.resting_hr if c.resting_hr is not none else "-" }} <span class="note">({{ c.resting_hr_n }})</span></td>
+          <td class="num">{{ c.bb_min if c.bb_min is not none else "-" }} <span class="note">({{ c.bb_min_n }})</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div class="note">Numbers in brackets are how many nights the mean is built from. Under about 10, treat the row as a hint rather than a finding.</div>
+  </div>
+
+  <div class="panel">
     <h2>Last two weeks</h2>
     <table>
       <thead><tr><th>Date</th><th>Shift</th><th class="num">Load</th><th class="num">Strain</th></tr></thead>
@@ -215,6 +251,39 @@ fetch('/api/series?days=' + range)
         ]
       },
       options: { ...base, scales: { ...base.scales, y: { ...base.scales.y, beginAtZero: true, suggestedMax: 2.2 } } }
+    });
+  });
+
+fetch('/api/recovery?days=' + (range || 180))
+  .then(r => r.json())
+  .then(d => {
+    new Chart(document.getElementById('recoveryChart'), {
+      type: 'line',
+      data: {
+        labels: d.dates,
+        datasets: [
+          { label: 'resting HR', data: d.resting_hr, borderColor: C.atl, borderWidth: 1.5,
+            pointRadius: 0, tension: 0.25, yAxisID: 'y', spanGaps: true },
+          { label: 'HRV', data: d.hrv, borderColor: C.ctl, borderWidth: 1.5,
+            pointRadius: 0, tension: 0.25, yAxisID: 'y1', spanGaps: true },
+          { label: 'sleep score', data: d.sleep_score, borderColor: '#7a9e3f', borderWidth: 1.5,
+            pointRadius: 0, tension: 0.25, yAxisID: 'y1', spanGaps: true }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { display: false }, shiftBands: { flags: d.is_shift, color: C.shift } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: C.muted, maxTicksLimit: 8, maxRotation: 0 } },
+          y: { grid: { color: C.line, drawTicks: false }, ticks: { color: C.muted, maxTicksLimit: 5 },
+               title: { display: true, text: 'resting HR', color: C.muted, font: { size: 10 } } },
+          y1: { position: 'right', grid: { display: false }, beginAtZero: true,
+                ticks: { color: C.muted, maxTicksLimit: 5 },
+                title: { display: true, text: 'HRV / sleep score', color: C.muted, font: { size: 10 } } }
+        }
+      },
+      plugins: [shiftBands]
     });
   });
 </script>
